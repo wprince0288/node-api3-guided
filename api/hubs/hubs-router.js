@@ -1,107 +1,57 @@
 const express = require('express');
-
+const { checkHubId, checkNewHub } = require('./hubs-middleware');
 const Hubs = require('./hubs-model.js');
 const Messages = require('../messages/messages-model.js');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', (req, res, next) => {
   Hubs.find(req.query)
     .then(hubs => {
+      // throw new Error('disaster!!');
       res.status(200).json(hubs);
     })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error retrieving the hubs',
-      });
-    });
+    .catch(next);
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', checkHubId, (req, res, next) => {
   Hubs.findById(req.params.id)
-    .then(hub => {
-      if (hub) {
-        res.status(200).json(hub);
-      } else {
-        res.status(404).json({ message: 'Hub not found' });
-      }
-    })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error retrieving the hub',
-      });
-    });
+  res.json(req.hub);
 });
 
-router.post('/', (req, res) => {
+router.post('/', checkNewHub, (req, res, next) => {
   Hubs.add(req.body)
     .then(hub => {
       res.status(201).json(hub);
     })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error adding the hub',
-      });
-    });
+    .catch(next);
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', checkHubId, (req, res, next) => {
   Hubs.remove(req.params.id)
-    .then(count => {
-      if (count > 0) {
-        res.status(200).json({ message: 'The hub has been nuked' });
-      } else {
-        res.status(404).json({ message: 'The hub could not be found' });
-      }
+    .then(() => {
+      res.status(200).json({ message: 'The hub has been nuked' });
     })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error removing the hub',
-      });
-    });
+    .catch(next);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', checkHubId, checkNewHub, (req, res, next) => {
   Hubs.update(req.params.id, req.body)
     .then(hub => {
-      if (hub) {
-        res.status(200).json(hub);
-      } else {
-        res.status(404).json({ message: 'The hub could not be found' });
-      }
+      res.status(200).json(hub);
     })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error updating the hub',
-      });
-    });
+    .catch(next);
 });
 
-router.get('/:id/messages', (req, res) => {
+router.get('/:id/messages', checkHubId, (req, res, next) => {
   Hubs.findHubMessages(req.params.id)
     .then(messages => {
       res.status(200).json(messages);
     })
-    .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error getting the messages for the hub',
-      });
-    });
+    .catch(next);
 });
 
-router.post('/:id/messages', (req, res) => {
+router.post('/:id/messages', checkHubId, (req, res, next) => {
   const messageInfo = { ...req.body, hub_id: req.params.id };
 
   Messages.add(messageInfo)
@@ -109,12 +59,15 @@ router.post('/:id/messages', (req, res) => {
       res.status(210).json(message);
     })
     .catch(error => {
-      // log error to server
-      console.log(error);
-      res.status(500).json({
-        message: 'Error adding message to the hub',
-      });
+      next(error);
     });
+});
+
+router.use((error, req, res, next) => { // eslint-disable-line
+  res.status(error.status || 500).json({
+    message: error.message,
+    customMessage: 'Something bad happened inside the hubs router',
+  });
 });
 
 module.exports = router;
